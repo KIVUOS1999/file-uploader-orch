@@ -9,8 +9,8 @@ import (
 
 	easyError "github.com/KIVUOS1999/easyApi/errors"
 	"github.com/KIVUOS1999/easyLogs/pkg/log"
+	dataModels "github.com/KIVUOS1999/file-uploader-db/models"
 	"github.com/KIVUOS1999/file-uploader-orch/pkg/models"
-	dataModels "github.com/KIVUOS1999/fileuploader-db/models"
 )
 
 type dataSvc struct {
@@ -23,6 +23,8 @@ type IDataSvc interface {
 
 	GetFilesByUser(userID string) ([]models.FileUploadStructure, error)
 	GetChunks(fileID string) ([]models.FileChunkStructure, error)
+
+	DeleteFile(fileID string) error
 }
 
 func New(dataURL string) IDataSvc {
@@ -195,4 +197,32 @@ func (svc *dataSvc) GetChunks(fileID string) ([]models.FileChunkStructure, error
 	}
 
 	return files, nil
+}
+
+func (svc *dataSvc) DeleteFile(fileID string) error {
+	api := svc.url + "/file/" + fileID
+
+	req, err := http.NewRequest(http.MethodDelete, api, nil)
+	if err != nil {
+		log.Error("new request:", err.Error())
+		return err
+	}
+
+	client := http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Error("do:", err.Error())
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Error("status:", resp.StatusCode)
+		return &easyError.CustomError{
+			StatusCode: http.StatusInternalServerError,
+			Response:   "return status code not status ok:" + strconv.Itoa(resp.StatusCode),
+		}
+	}
+
+	return nil
 }

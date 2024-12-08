@@ -18,8 +18,10 @@ func main() {
 
 	app.Get("/files/{user-id}", handler.GetFileByUser)
 	app.Get("/chunks/{file-id}", handler.GetChunks)
-
 	app.Get("/download/{chunk-name}", handler.DownloadChunk)
+
+	app.Delete("/file/{file-id}", handler.DeleteFile)
+	// app.Options("/file/{file-id}", handler.DeleteFile)
 
 	app.Start()
 }

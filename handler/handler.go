@@ -29,8 +29,6 @@ func New(dataSvc service.IDataSvc) *handlerStruct {
 }
 
 func (h *handlerStruct) UploadFile(ctx *app.Context) (interface{}, error) {
-	ctx.Response.AddCORS()
-
 	fileStructure := models.FileUploadStructure{}
 
 	err := ctx.Bind(&fileStructure)
@@ -59,8 +57,6 @@ func (h *handlerStruct) UploadFile(ctx *app.Context) (interface{}, error) {
 }
 
 func (h *handlerStruct) UploadChunks(ctx *app.Context) (interface{}, error) {
-	ctx.Response.AddCORS()
-
 	err := ctx.Request.Req.ParseMultipartForm(10 << 20)
 	if err != nil {
 		log.Error("Error in parse multipart", err.Error())
@@ -117,8 +113,6 @@ func (h *handlerStruct) UploadChunks(ctx *app.Context) (interface{}, error) {
 }
 
 func (h *handlerStruct) GetFileByUser(ctx *app.Context) (interface{}, error) {
-	ctx.Response.AddCORS()
-
 	userID := ctx.PathParam("user-id")
 	log.Debug("user", userID)
 
@@ -126,8 +120,6 @@ func (h *handlerStruct) GetFileByUser(ctx *app.Context) (interface{}, error) {
 }
 
 func (h *handlerStruct) GetChunks(ctx *app.Context) (interface{}, error) {
-	ctx.Response.AddCORS()
-
 	fileID := ctx.PathParam("file-id")
 	if fileID == "" {
 		return nil, &easyError.CustomError{
@@ -135,6 +127,8 @@ func (h *handlerStruct) GetChunks(ctx *app.Context) (interface{}, error) {
 			Response:   "file-id not passed",
 		}
 	}
+
+	log.Debug("[DOWNLOAD] quering for chunks:", fileID)
 
 	chunks, err := h.dataSvc.GetChunks(fileID)
 	if err != nil {
@@ -152,8 +146,6 @@ func (h *handlerStruct) GetChunks(ctx *app.Context) (interface{}, error) {
 }
 
 func (h *handlerStruct) DownloadChunk(ctx *app.Context) (interface{}, error) {
-	ctx.Response.AddCORS()
-
 	chunkName := ctx.PathParam("chunk-name")
 
 	log.Debug("requesting chunk:", chunkName)
@@ -174,6 +166,38 @@ func (h *handlerStruct) DownloadChunk(ctx *app.Context) (interface{}, error) {
 
 	log.Info("written - %+v", written)
 	return nil, nil
+}
+
+func (h *handlerStruct) DeleteFile(ctx *app.Context) (interface{}, error) {
+	fileID := ctx.PathParam("file-id")
+
+	chunks, err := h.dataSvc.GetChunks(fileID)
+	if err != nil {
+		return nil, err
+	}
+
+	files := []string{}
+	for idx := range chunks {
+		files = append(files, "./temp/"+fileID+"_"+chunks[idx].ID.String())
+	}
+
+	for _, file := range files {
+		deleteFile(file)
+	}
+
+	return nil, h.dataSvc.DeleteFile(fileID)
+}
+
+func deleteFile(destPath string) error {
+	log.Debug("delete", destPath)
+
+	err := os.Remove(destPath)
+	if err != nil {
+		log.Error(destPath, err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func saveFile(destPath string, file multipart.File) (string, error) {
