@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -28,7 +29,94 @@ func New(dataSvc service.IDataSvc) *handlerStruct {
 	}
 }
 
+/*
+alg:RS256
+aud:112183527117-8i7nqtfeev3s1ai1fvla0huapm72kls1.apps.googleusercontent.com
+azp:112183527117-8i7nqtfeev3s1ai1fvla0huapm72kls1.apps.googleusercontent.com
+email:souviksarkar.ronnie@gmail.com
+email_verified:true
+exp:1734636877
+family_name:Sarkar
+given_name:Souvik
+iat:1734633277
+iss:https://accounts.google.com
+jti:241497a46155a0050398a823e203bcdb8d2cea52
+kid:564feacec3ebdfaa7311b9d8e73c42818f291264
+name:Souvik Sarkar
+nbf:1734632977
+picture:https://lh3.googleusercontent.com/a/ACg8ocLFmT9rKWtEVLcxNqRP8KIvlq9eCF7QjW-ItpccdZ44P5axTSYp=s96-c
+sub:116214675523781428407
+typ:JWT
+*/
+func (h *handlerStruct) getUserDetails(idToken string) (*models.TokenData, error) {
+	api := "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken
+	req, err := http.NewRequest(http.MethodGet, api, nil)
+	if err != nil {
+		log.Error("new request:", err.Error())
+		return nil, err
+	}
+
+	client := http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Error("do:", err.Error())
+		return nil, err
+	}
+
+	tokenData := models.TokenData{}
+	json.NewDecoder(resp.Body).Decode(&tokenData)
+
+	if resp.StatusCode != http.StatusOK {
+		log.Error("status:", resp.StatusCode)
+
+		return nil, &easyError.CustomError{
+			StatusCode: http.StatusInternalServerError,
+			Response:   "return status code not status ok:" + strconv.Itoa(resp.StatusCode),
+		}
+	}
+
+	return &tokenData, nil
+}
+
+func (h *handlerStruct) AddUser(ctx *app.Context) (interface{}, error) {
+	idToken := ctx.Request.GetHeader("Authorization")
+
+	log.Info("ID token:", idToken)
+
+	userData, err := h.getUserDetails(idToken)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("user details: %+v", userData)
+
+	user, _ := h.dataSvc.GetUser(userData.ID)
+	if user != nil {
+		log.Infof("user present - %+v", user)
+		return userData, nil
+	}
+
+	log.Info("user not present -", userData.ID)
+
+	err = h.dataSvc.AddUser(userData)
+	if err != nil {
+		return nil, err
+	}
+
+	return userData, nil
+}
+
 func (h *handlerStruct) UploadFile(ctx *app.Context) (interface{}, error) {
+	userID := ctx.PathParam("user-id")
+	if userID == "" {
+		log.Error("empty user id")
+		return nil, &easyError.CustomError{
+			StatusCode: http.StatusBadRequest,
+			Response:   "user-id is empty",
+		}
+	}
+
 	fileStructure := models.FileUploadStructure{}
 
 	err := ctx.Bind(&fileStructure)
@@ -41,10 +129,11 @@ func (h *handlerStruct) UploadFile(ctx *app.Context) (interface{}, error) {
 	currentTime := time.Now().UTC().Unix()
 	fileID := uuid.New()
 
+	fileStructure.UserID = userID
 	fileStructure.ID = fileID
 	fileStructure.CreatedAt = currentTime
 
-	log.Infof("uploading file data success: file_id = %s", fileID)
+	log.Infof("uploading file data success: file_id, user_id = %s, %s", fileID.String(), userID)
 
 	// DB Upload
 	err = h.dataSvc.UploadFileDetails(&fileStructure)
@@ -114,7 +203,6 @@ func (h *handlerStruct) UploadChunks(ctx *app.Context) (interface{}, error) {
 
 func (h *handlerStruct) GetFileByUser(ctx *app.Context) (interface{}, error) {
 	userID := ctx.PathParam("user-id")
-	log.Debug("user", userID)
 
 	return h.dataSvc.GetFilesByUser(userID)
 }
