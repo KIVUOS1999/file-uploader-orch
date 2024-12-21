@@ -22,7 +22,7 @@ type IDataSvc interface {
 	UploadChunkDetails(chunkDetails *models.FileChunkStructure) error
 	AddUser(userData *models.TokenData) error
 
-	GetFilesByUser(userID string) ([]models.FileUploadStructure, error)
+	GetFilesByUser(userID string) (*models.FileList, error)
 	GetChunks(fileID string) ([]models.FileChunkStructure, error)
 	GetUser(userID string) (*dataModels.Users, error)
 
@@ -174,7 +174,7 @@ func (svc *dataSvc) AddUser(userData *models.TokenData) error {
 	return nil
 }
 
-func (svc *dataSvc) GetFilesByUser(userID string) ([]models.FileUploadStructure, error) {
+func (svc *dataSvc) GetFilesByUser(userID string) (*models.FileList, error) {
 	api := svc.url + "/files/" + userID
 	log.Debug("files by user:", api)
 
@@ -207,7 +207,13 @@ func (svc *dataSvc) GetFilesByUser(userID string) ([]models.FileUploadStructure,
 		return nil, err
 	}
 
-	return files, nil
+	fileList := models.FileList{
+		FileArr: files,
+	}
+
+	fileList.CalculateSize()
+
+	return &fileList, nil
 }
 
 func (svc *dataSvc) GetChunks(fileID string) ([]models.FileChunkStructure, error) {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/KIVUOS1999/easyApi/app"
+	"github.com/KIVUOS1999/easyApi/constants"
 	easyError "github.com/KIVUOS1999/easyApi/errors"
 	"github.com/KIVUOS1999/easyLogs/pkg/log"
 	"github.com/KIVUOS1999/file-uploader-orch/pkg/models"
@@ -94,6 +95,8 @@ func (h *handlerStruct) AddUser(ctx *app.Context) (interface{}, error) {
 	user, _ := h.dataSvc.GetUser(userData.ID)
 	if user != nil {
 		log.Infof("user present - %+v", user)
+		userData.AllotedSize = user.AllotedSize
+
 		return userData, nil
 	}
 
@@ -103,6 +106,8 @@ func (h *handlerStruct) AddUser(ctx *app.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	userData.AllotedSize = constants.DefaultUserAllotment
 
 	return userData, nil
 }
@@ -134,6 +139,19 @@ func (h *handlerStruct) UploadFile(ctx *app.Context) (interface{}, error) {
 	fileStructure.CreatedAt = currentTime
 
 	log.Infof("uploading file data success: file_id, user_id = %s, %s", fileID.String(), userID)
+
+	// checks for total size.
+	ok, err := h.hasUserSizeExceed(ctx, userID, fileStructure.Meta.Size)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, &easyError.CustomError{
+			StatusCode: http.StatusInsufficientStorage,
+			Response:   "you have exceeded you limit",
+		}
+	}
 
 	// DB Upload
 	err = h.dataSvc.UploadFileDetails(&fileStructure)
@@ -310,4 +328,27 @@ func saveFile(destPath string, file multipart.File) (string, error) {
 	checksum := hex.EncodeToString(hash.Sum(nil))
 
 	return checksum, nil
+}
+
+func (h *handlerStruct) hasUserSizeExceed(_ *app.Context, userID string, currentFileSize uint64) (bool, error) {
+	uploadedFile, err := h.dataSvc.GetFilesByUser(userID)
+	if err != nil {
+		return false, err
+	}
+
+	var size uint64
+
+	for idx := range uploadedFile.FileArr {
+		size += uploadedFile.FileArr[idx].Meta.Size
+	}
+
+	usedSize := uploadedFile.CalculateSize() + currentFileSize
+
+	if usedSize < size {
+		log.Warnf("%s has exceed the size limit : %+v / %+v", userID, size, usedSize)
+		return true, nil
+	}
+
+	log.Infof("%s size limit : %+v / %+v", userID, size, usedSize)
+	return false, nil
 }
