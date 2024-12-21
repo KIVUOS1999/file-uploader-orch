@@ -83,8 +83,6 @@ func (h *handlerStruct) getUserDetails(idToken string) (*models.TokenData, error
 func (h *handlerStruct) AddUser(ctx *app.Context) (interface{}, error) {
 	idToken := ctx.Request.GetHeader("Authorization")
 
-	log.Info("ID token:", idToken)
-
 	userData, err := h.getUserDetails(idToken)
 	if err != nil {
 		return nil, err
@@ -146,7 +144,7 @@ func (h *handlerStruct) UploadFile(ctx *app.Context) (interface{}, error) {
 		return nil, err
 	}
 
-	if !ok {
+	if ok {
 		return nil, &easyError.CustomError{
 			StatusCode: http.StatusInsufficientStorage,
 			Response:   "you have exceeded you limit",
