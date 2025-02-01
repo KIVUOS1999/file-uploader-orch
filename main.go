@@ -2,11 +2,13 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/KIVUOS1999/easyApi/app"
 	easyError "github.com/KIVUOS1999/easyApi/errors"
 	"github.com/KIVUOS1999/easyLogs/pkg/log"
+	"github.com/KIVUOS1999/file-uploader-orch/constants"
 	"github.com/KIVUOS1999/file-uploader-orch/handler"
 	"github.com/KIVUOS1999/file-uploader-orch/service"
 )
@@ -76,6 +78,12 @@ func validateAuth(next http.Handler) http.Handler {
 
 func main() {
 	app := app.New()
+
+	_, err := os.Stat(constants.CHUNK_STORE_BASE)
+	if err != nil {
+		log.Error(constants.CHUNK_STORE_BASE, "file-store folder not present check configuration")
+		os.Exit(1)
+	}
 
 	url := app.Configs.Get("DATA_SVC_HOST")
 	dataSvc := service.New(url)
