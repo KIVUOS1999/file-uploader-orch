@@ -263,6 +263,14 @@ func (h *handlerStruct) DownloadChunk(ctx *app.Context) (interface{}, error) {
 
 	defer file.Close()
 
+	fileInfo, err := file.Stat()
+	if err != nil {
+		log.Error("file stats", err.Error())
+		return nil, err
+	}
+
+	ctx.Response.SetHeaders("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+
 	written, err := io.Copy(ctx.Response.Resp, file)
 	if err != nil {
 		log.Error("Error in file copy", err.Error())
@@ -270,6 +278,7 @@ func (h *handlerStruct) DownloadChunk(ctx *app.Context) (interface{}, error) {
 	}
 
 	log.Info("written - %+v", written)
+
 	return nil, nil
 }
 
