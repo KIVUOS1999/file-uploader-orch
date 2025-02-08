@@ -15,6 +15,7 @@ import (
 	"github.com/KIVUOS1999/easyApi/constants"
 	easyError "github.com/KIVUOS1999/easyApi/errors"
 	"github.com/KIVUOS1999/easyLogs/pkg/log"
+	c "github.com/KIVUOS1999/file-uploader-orch/constants"
 	"github.com/KIVUOS1999/file-uploader-orch/pkg/models"
 	"github.com/KIVUOS1999/file-uploader-orch/service"
 	"github.com/google/uuid"
@@ -194,7 +195,7 @@ func (h *handlerStruct) UploadChunks(ctx *app.Context) (interface{}, error) {
 
 	chunkID := uuid.New()
 
-	dest := "./temp/" + fileID + "_" + chunkID.String()
+	dest := c.CHUNK_STORE_BASE + fileID + "_" + chunkID.String()
 
 	checksum, err := saveFile(dest, file)
 	if err != nil {
@@ -254,7 +255,7 @@ func (h *handlerStruct) DownloadChunk(ctx *app.Context) (interface{}, error) {
 
 	log.Debug("requesting chunk:", chunkName)
 
-	file, err := os.Open("temp/" + chunkName)
+	file, err := os.Open(c.CHUNK_STORE_BASE + chunkName)
 	if err != nil {
 		log.Error("Error in file open", err.Error())
 		return nil, err
@@ -269,6 +270,7 @@ func (h *handlerStruct) DownloadChunk(ctx *app.Context) (interface{}, error) {
 	}
 
 	log.Info("written - %+v", written)
+
 	return nil, nil
 }
 
@@ -282,7 +284,7 @@ func (h *handlerStruct) DeleteFile(ctx *app.Context) (interface{}, error) {
 
 	files := []string{}
 	for idx := range chunks {
-		files = append(files, "./temp/"+fileID+"_"+chunks[idx].ID.String())
+		files = append(files, c.CHUNK_STORE_BASE+fileID+"_"+chunks[idx].ID.String())
 	}
 
 	for _, file := range files {
